@@ -1,6 +1,12 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type Product = {
   id: number;
@@ -9,7 +15,9 @@ type Product = {
   category: string;
   image: string;
   description?: string;
-  specifications?: string;
+  details?: string;
+  stock?: number;
+  created_at?: string;
 };
 
 const inputStyle = {
@@ -41,13 +49,17 @@ const textareaStyle = {
 export default function AdminDashboard() {
   const [authorized, setAuthorized] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState("");
   const [image, setImage] = useState("");
   const [description, setDescription] = useState("");
-  const [specifications, setSpecifications] = useState("");
+  const [details, setDetails] = useState("");
+  const [stock, setStock] = useState("1");
 
   useEffect(() => {
     const loggedIn = sessionStorage.getItem("jkAdminLoggedIn");
@@ -63,32 +75,37 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!authorized) return;
 
-    const savedProducts = localStorage.getItem("jkProducts");
-
-    if (savedProducts) {
-      try {
-        setProducts(JSON.parse(savedProducts));
-      } catch {
-        setProducts([]);
-      }
-    }
+    loadProducts();
   }, [authorized]);
 
-  const saveProducts = (updatedProducts: Product[]) => {
-    setProducts(updatedProducts);
+  async function loadProducts() {
+    setLoading(true);
 
-    localStorage.setItem(
-      "jkProducts",
-      JSON.stringify(updatedProducts)
-    );
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    window.dispatchEvent(new Event("jkProductsUpdated"));
-  };
+    if (error) {
+      console.error("Supabase load error:", error);
+      alert("Unable to load products from Supabase.\n\n" + error.message);
+      setProducts([]);
+    } else {
+      setProducts((data || []) as Product[]);
+    }
 
-  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    setLoading(false);
+  }
+
+  function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
 
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Please select an image below 5MB.");
+      return;
+    }
 
     const reader = new FileReader();
 
@@ -97,9 +114,9 @@ export default function AdminDashboard() {
     };
 
     reader.readAsDataURL(file);
-  };
+  }
 
-  const addProduct = () => {
+  async function addProduct() {
     if (
       !name.trim() ||
       !price.trim() ||
@@ -112,52 +129,107 @@ export default function AdminDashboard() {
       return;
     }
 
-    const newProduct: Product = {
-      id: Date.now(),
+    const numericPrice = Number(price);
+    const numericStock = Number(stock);
+
+    if (isNaN(numericPrice) || numericPrice < 0) {
+      alert("Please enter a valid price.");
+      return;
+    }
+
+    if (isNaN(numericStock) || numericStock < 0) {
+      alert("Please enter a valid stock quantity.");
+      return;
+    }
+
+    setAdding(true);
+
+    const product = {
       name: name.trim(),
-      price: Number(price),
-      category,
-      image,
+      price: numericPrice,
+      category: category.trim(),
+      image: image,
       description:
         description.trim() ||
         "Premium product from JK Shoes & Leathers.",
-      specifications:
-        specifications.trim() ||
+      details:
+        details.trim() ||
         "Specifications will be updated by JK Shoes.",
+      stock: numericStock,
     };
 
-    const updatedProducts = [...products, newProduct];
+    const { data, error } = await supabase
+      .from("products")
+      .insert([product])
+      .select()
+      .single();
 
-    saveProducts(updatedProducts);
+    if (error) {
+      console.error("Supabase insert error:", error);
+      alert(
+        "Product could not be added.\n\n" + error.message
+      );
+      setAdding(false);
+      return;
+    }
+
+    if (data) {
+      setProducts((current) => [
+        data as Product,
+        ...current,
+      ]);
+    }
 
     setName("");
     setPrice("");
     setCategory("");
     setImage("");
     setDescription("");
-    setSpecifications("");
+    setDetails("");
+    setStock("1");
+
+    setAdding(false);
 
     alert("Product added successfully!");
-  };
+  }
 
-  const deleteProduct = (id: number) => {
+  async function deleteProduct(id: number) {
     const confirmDelete = window.confirm(
-      "Are you sure you want to delete this product?"
+      "Are you sure you want to permanently delete this product?"
     );
 
     if (!confirmDelete) return;
 
-    const updatedProducts = products.filter(
-      (product) => product.id !== id
+    setDeletingId(id);
+
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase delete error:", error);
+      alert(
+        "Product could not be deleted.\n\n" +
+          error.message
+      );
+      setDeletingId(null);
+      return;
+    }
+
+    setProducts((current) =>
+      current.filter((product) => product.id !== id)
     );
 
-    saveProducts(updatedProducts);
-  };
+    setDeletingId(null);
 
-  const logout = () => {
+    alert("Product deleted successfully!");
+  }
+
+  function logout() {
     sessionStorage.removeItem("jkAdminLoggedIn");
     window.location.replace("/admin");
-  };
+  }
 
   if (!authorized) {
     return (
@@ -209,7 +281,12 @@ export default function AdminDashboard() {
             JK Shoes Admin
           </h1>
 
-          <p style={{ color: "#999", fontSize: "13px" }}>
+          <p
+            style={{
+              color: "#999",
+              fontSize: "13px",
+            }}
+          >
             Manage your products
           </p>
         </div>
@@ -290,6 +367,15 @@ export default function AdminDashboard() {
           </select>
 
           <input
+            type="number"
+            min="0"
+            placeholder="Stock"
+            value={stock}
+            onChange={(e) => setStock(e.target.value)}
+            style={inputStyle}
+          />
+
+          <input
             type="file"
             accept="image/*"
             onChange={handleImageUpload}
@@ -303,7 +389,9 @@ export default function AdminDashboard() {
         <textarea
           placeholder="Product Description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) =>
+            setDescription(e.target.value)
+          }
           style={{
             ...textareaStyle,
             marginTop: "15px",
@@ -311,11 +399,9 @@ export default function AdminDashboard() {
         />
 
         <textarea
-          placeholder="Specifications - Type anything you want here..."
-          value={specifications}
-          onChange={(e) =>
-            setSpecifications(e.target.value)
-          }
+          placeholder="Product Details / Specifications"
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
           style={{
             ...textareaStyle,
             marginTop: "15px",
@@ -362,19 +448,20 @@ export default function AdminDashboard() {
 
         <button
           onClick={addProduct}
+          disabled={adding}
           style={{
             marginTop: "20px",
-            background: "#dcae5d",
+            background: adding ? "#806b45" : "#dcae5d",
             color: "#111",
             border: "none",
             padding: "14px 25px",
             borderRadius: "7px",
-            cursor: "pointer",
+            cursor: adding ? "not-allowed" : "pointer",
             fontSize: "14px",
             fontWeight: "bold",
           }}
         >
-          + ADD PRODUCT
+          {adding ? "ADDING PRODUCT..." : "+ ADD PRODUCT"}
         </button>
       </section>
 
@@ -394,7 +481,20 @@ export default function AdminDashboard() {
           Current Products ({products.length})
         </h2>
 
-        {products.length === 0 ? (
+        {loading ? (
+          <div
+            style={{
+              background: "#100c09",
+              border: "1px solid #4e3a1c",
+              padding: "40px",
+              borderRadius: "12px",
+              textAlign: "center",
+              color: "#dcae5d",
+            }}
+          >
+            Loading products...
+          </div>
+        ) : products.length === 0 ? (
           <div
             style={{
               background: "#100c09",
@@ -468,10 +568,26 @@ export default function AdminDashboard() {
                       color: "#fff",
                       fontSize: "20px",
                       fontWeight: "bold",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    ₹
+                    {product.price.toLocaleString(
+                      "en-IN"
+                    )}
+                  </p>
+
+                  <p
+                    style={{
+                      color:
+                        (product.stock ?? 0) > 0
+                          ? "#7ed957"
+                          : "#ff5555",
+                      fontSize: "12px",
                       marginBottom: "12px",
                     }}
                   >
-                    ₹{product.price.toLocaleString("en-IN")}
+                    Stock: {product.stock ?? 0}
                   </p>
 
                   <div
@@ -491,7 +607,7 @@ export default function AdminDashboard() {
                         marginBottom: "6px",
                       }}
                     >
-                      SPECIFICATIONS
+                      DETAILS
                     </p>
 
                     <p
@@ -501,23 +617,35 @@ export default function AdminDashboard() {
                         lineHeight: "1.6",
                       }}
                     >
-                      {product.specifications || "Not specified"}
+                      {product.details ||
+                        "Not specified"}
                     </p>
                   </div>
 
                   <button
-                    onClick={() => deleteProduct(product.id)}
+                    onClick={() =>
+                      deleteProduct(product.id)
+                    }
+                    disabled={deletingId === product.id}
                     style={{
                       width: "100%",
-                      background: "#b52b2b",
+                      background:
+                        deletingId === product.id
+                          ? "#633"
+                          : "#b52b2b",
                       color: "#fff",
                       border: "none",
                       padding: "11px",
                       borderRadius: "7px",
-                      cursor: "pointer",
+                      cursor:
+                        deletingId === product.id
+                          ? "not-allowed"
+                          : "pointer",
                     }}
                   >
-                    🗑 DELETE PRODUCT
+                    {deletingId === product.id
+                      ? "DELETING..."
+                      : "🗑 DELETE PRODUCT"}
                   </button>
                 </div>
               </div>
