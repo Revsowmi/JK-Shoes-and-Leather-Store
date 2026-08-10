@@ -47,7 +47,6 @@ const textareaStyle = {
 };
 
 export default function AdminDashboard() {
-  const [authorized, setAuthorized] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -62,21 +61,8 @@ export default function AdminDashboard() {
   const [stock, setStock] = useState("1");
 
   useEffect(() => {
-    const loggedIn = sessionStorage.getItem("jkAdminLoggedIn");
-
-    if (loggedIn !== "true") {
-      window.location.replace("/admin");
-      return;
-    }
-
-    setAuthorized(true);
-  }, []);
-
-  useEffect(() => {
-    if (!authorized) return;
-
     loadProducts();
-  }, [authorized]);
+  }, []);
 
   async function loadProducts() {
     setLoading(true);
@@ -88,7 +74,10 @@ export default function AdminDashboard() {
 
     if (error) {
       console.error("Supabase load error:", error);
-      alert("Unable to load products from Supabase.\n\n" + error.message);
+      alert(
+        "Unable to load products from Supabase.\n\n" +
+          error.message
+      );
       setProducts([]);
     } else {
       setProducts((data || []) as Product[]);
@@ -97,7 +86,9 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+  function handleImageUpload(
+    e: ChangeEvent<HTMLInputElement>
+  ) {
     const file = e.target.files?.[0];
 
     if (!file) return;
@@ -132,12 +123,18 @@ export default function AdminDashboard() {
     const numericPrice = Number(price);
     const numericStock = Number(stock);
 
-    if (isNaN(numericPrice) || numericPrice < 0) {
+    if (
+      Number.isNaN(numericPrice) ||
+      numericPrice < 0
+    ) {
       alert("Please enter a valid price.");
       return;
     }
 
-    if (isNaN(numericStock) || numericStock < 0) {
+    if (
+      Number.isNaN(numericStock) ||
+      numericStock < 0
+    ) {
       alert("Please enter a valid stock quantity.");
       return;
     }
@@ -148,7 +145,7 @@ export default function AdminDashboard() {
       name: name.trim(),
       price: numericPrice,
       category: category.trim(),
-      image: image,
+      image,
       description:
         description.trim() ||
         "Premium product from JK Shoes & Leathers.",
@@ -166,9 +163,12 @@ export default function AdminDashboard() {
 
     if (error) {
       console.error("Supabase insert error:", error);
+
       alert(
-        "Product could not be added.\n\n" + error.message
+        "Product could not be added.\n\n" +
+          error.message
       );
+
       setAdding(false);
       return;
     }
@@ -209,10 +209,12 @@ export default function AdminDashboard() {
 
     if (error) {
       console.error("Supabase delete error:", error);
+
       alert(
         "Product could not be deleted.\n\n" +
           error.message
       );
+
       setDeletingId(null);
       return;
     }
@@ -224,29 +226,6 @@ export default function AdminDashboard() {
     setDeletingId(null);
 
     alert("Product deleted successfully!");
-  }
-
-  function logout() {
-    sessionStorage.removeItem("jkAdminLoggedIn");
-    window.location.replace("/admin");
-  }
-
-  if (!authorized) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          background: "#080808",
-          color: "#dcae5d",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        Checking admin access...
-      </main>
-    );
   }
 
   return (
@@ -292,7 +271,7 @@ export default function AdminDashboard() {
         </div>
 
         <button
-          onClick={logout}
+          onClick={loadProducts}
           style={{
             background: "transparent",
             color: "#fff",
@@ -302,7 +281,7 @@ export default function AdminDashboard() {
             cursor: "pointer",
           }}
         >
-          LOGOUT
+          REFRESH
         </button>
       </div>
 
@@ -389,9 +368,7 @@ export default function AdminDashboard() {
         <textarea
           placeholder="Product Description"
           value={description}
-          onChange={(e) =>
-            setDescription(e.target.value)
-          }
+          onChange={(e) => setDescription(e.target.value)}
           style={{
             ...textareaStyle,
             marginTop: "15px",
@@ -461,7 +438,9 @@ export default function AdminDashboard() {
             fontWeight: "bold",
           }}
         >
-          {adding ? "ADDING PRODUCT..." : "+ ADD PRODUCT"}
+          {adding
+            ? "ADDING PRODUCT..."
+            : "+ ADD PRODUCT"}
         </button>
       </section>
 
@@ -572,9 +551,7 @@ export default function AdminDashboard() {
                     }}
                   >
                     ₹
-                    {product.price.toLocaleString(
-                      "en-IN"
-                    )}
+                    {product.price.toLocaleString("en-IN")}
                   </p>
 
                   <p
@@ -617,8 +594,7 @@ export default function AdminDashboard() {
                         lineHeight: "1.6",
                       }}
                     >
-                      {product.details ||
-                        "Not specified"}
+                      {product.details || "Not specified"}
                     </p>
                   </div>
 
