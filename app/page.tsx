@@ -371,7 +371,7 @@ Thank you.
 `;
 
     const whatsappNumber =
-      "919884547622";
+      "919042754366";
 
     const whatsappURL =
       `https://wa.me/${whatsappNumber}?text=` +
@@ -1320,7 +1320,7 @@ Thank you.
               </button>
 
               <a
-                href="https://wa.me/919884547622"
+                href="https://wa.me/919042754366"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="outline-btn"
@@ -1999,7 +1999,7 @@ Thank you.
                 </a>
 
                 <a
-                  href="https://wa.me/919884547622"
+                  href="https://wa.me/919042754366"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="outline-btn"
