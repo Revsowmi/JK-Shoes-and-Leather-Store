@@ -15,6 +15,13 @@ type Product = {
   created_at?: string;
 };
 
+type Collection = {
+  id: number;
+  name: string;
+  image: string;
+  sort_order?: number;
+};
+
 type CartItem = Product & {
   quantity: number;
 };
@@ -100,9 +107,21 @@ const DEFAULT_PRODUCTS: Product[] = [
   },
 ];
 
+const DEFAULT_COLLECTIONS: Collection[] = [
+  { id: 1, name: "Formal Shoes", image: "/Images/formal-shoes.jpg" },
+  { id: 2, name: "Sandals", image: "/Images/sandals.jpg" },
+  { id: 3, name: "Loafers", image: "/Images/loafers.jpg" },
+  { id: 4, name: "Casual Shoes", image: "/Images/casual-shoes.jpg" },
+  { id: 5, name: "Leather Bags", image: "/Images/leather bags.jpg" },
+  { id: 6, name: "Backpacks", image: "/Images/BACKPACKS.jpg" },
+];
+
 export default function Home() {
   const [products, setProducts] =
     useState<Product[]>(DEFAULT_PRODUCTS);
+
+  const [collections, setCollections] =
+    useState<Collection[]>(DEFAULT_COLLECTIONS);
 
   const [cart, setCart] =
     useState<CartItem[]>([]);
@@ -133,6 +152,7 @@ export default function Home() {
 
   useEffect(() => {
     loadProducts();
+    loadCollections();
   }, []);
 
   async function loadProducts() {
@@ -159,6 +179,25 @@ export default function Home() {
     }
 
     setLoading(false);
+  }
+
+  async function loadCollections() {
+    const { data, error } = await supabase
+      .from("collections")
+      .select("*")
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error(
+        "SUPABASE COLLECTIONS ERROR:",
+        error
+      );
+      setCollections(DEFAULT_COLLECTIONS);
+    } else if (data && data.length > 0) {
+      setCollections(data);
+    } else {
+      setCollections(DEFAULT_COLLECTIONS);
+    }
   }
 
   const visibleProducts =
@@ -1357,39 +1396,14 @@ Thank you.
           </div>
 
           <div className="collections">
-            {[
-              [
-                "Formal Shoes",
-                "/Images/formal-shoes.jpg",
-              ],
-              [
-                "Sandals",
-                "/Images/sandals.jpg",
-              ],
-              [
-                "Loafers",
-                "/Images/loafers.jpg",
-              ],
-              [
-                "Casual Shoes",
-                "/Images/casual-shoes.jpg",
-              ],
-              [
-                "Leather Bags",
-                "/Images/leather bags.jpg",
-              ],
-              [
-                "Backpacks",
-                "/Images/BACKPACKS.jpg",
-              ],
-            ].map(
-              ([name, image]) => (
+            {collections.map(
+              (collection) => (
                 <div
                   className="collection-card"
-                  key={name}
+                  key={collection.id ?? collection.name}
                   onClick={() => {
                     setActiveCategory(
-                      name
+                      collection.name
                     );
                     scrollTo(
                       "products"
@@ -1397,13 +1411,13 @@ Thank you.
                   }}
                 >
                   <img
-                    src={image}
-                    alt={name}
+                    src={collection.image}
+                    alt={collection.name}
                   />
 
                   <div className="collection-info">
                     <h3>
-                      {name.toUpperCase()}
+                      {collection.name.toUpperCase()}
                     </h3>
 
                     <span>
@@ -1978,7 +1992,7 @@ Thank you.
               </p>
 
               <p>
-                💬 9884547622
+                💬 9042754366
               </p>
 
               <p>
@@ -2106,7 +2120,7 @@ Thank you.
               </p>
 
               <p>
-                9884547622
+                9042754366
               </p>
 
               <p>
