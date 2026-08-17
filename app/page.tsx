@@ -9,6 +9,9 @@ type Product = {
   price: number;
   category: string;
   image: string;
+  images?: string[];
+  video?: string;
+  video_url?: string;
   description?: string;
   details?: string;
   stock?: number;
@@ -56,8 +59,7 @@ const DEFAULT_PRODUCTS: Product[] = [
     price: 2499,
     category: "Leather Bags",
     image: "/Images/travel dufflebag.jpg",
-    description:
-      "Spacious leather travel duffle bag.",
+    description: "Spacious leather travel duffle bag.",
     details:
       "Material: Leather | Capacity: Large | Travel Friendly",
   },
@@ -108,12 +110,36 @@ const DEFAULT_PRODUCTS: Product[] = [
 ];
 
 const DEFAULT_COLLECTIONS: Collection[] = [
-  { id: 1, name: "Formal Shoes", image: "/Images/formal-shoes.jpg" },
-  { id: 2, name: "Sandals", image: "/Images/sandals.jpg" },
-  { id: 3, name: "Loafers", image: "/Images/loafers.jpg" },
-  { id: 4, name: "Casual Shoes", image: "/Images/casual-shoes.jpg" },
-  { id: 5, name: "Leather Bags", image: "/Images/leather bags.jpg" },
-  { id: 6, name: "Backpacks", image: "/Images/BACKPACKS.jpg" },
+  {
+    id: 1,
+    name: "Formal Shoes",
+    image: "/Images/formal-shoes.jpg",
+  },
+  {
+    id: 2,
+    name: "Sandals",
+    image: "/Images/sandals.jpg",
+  },
+  {
+    id: 3,
+    name: "Loafers",
+    image: "/Images/loafers.jpg",
+  },
+  {
+    id: 4,
+    name: "Casual Shoes",
+    image: "/Images/casual-shoes.jpg",
+  },
+  {
+    id: 5,
+    name: "Leather Bags",
+    image: "/Images/leather bags.jpg",
+  },
+  {
+    id: 6,
+    name: "Backpacks",
+    image: "/Images/BACKPACKS.jpg",
+  },
 ];
 
 export default function Home() {
@@ -131,6 +157,13 @@ export default function Home() {
 
   const [selectedProduct, setSelectedProduct] =
     useState<Product | null>(null);
+
+  const [currentImageIndex, setCurrentImageIndex] =
+    useState(0);
+
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [selectedProduct]);
 
   const [loading, setLoading] =
     useState(true);
@@ -185,13 +218,16 @@ export default function Home() {
     const { data, error } = await supabase
       .from("collections")
       .select("*")
-      .order("sort_order", { ascending: true });
+      .order("sort_order", {
+        ascending: true,
+      });
 
     if (error) {
       console.error(
         "SUPABASE COLLECTIONS ERROR:",
         error
       );
+
       setCollections(DEFAULT_COLLECTIONS);
     } else if (data && data.length > 0) {
       setCollections(data);
@@ -199,6 +235,13 @@ export default function Home() {
       setCollections(DEFAULT_COLLECTIONS);
     }
   }
+
+  const galleryImages = selectedProduct
+    ? [
+        selectedProduct.image,
+        ...(selectedProduct.images || []),
+      ].filter(Boolean)
+    : [];
 
   const visibleProducts =
     activeCategory === "All"
@@ -227,7 +270,9 @@ export default function Home() {
       product.stock !== undefined &&
       product.stock <= 0
     ) {
-      alert("This product is currently out of stock.");
+      alert(
+        "This product is currently out of stock."
+      );
       return;
     }
 
@@ -658,6 +703,7 @@ Thank you.
           position: relative;
           overflow: hidden;
           border: 1px solid #4e3a1c;
+          cursor: pointer;
         }
 
         .collection-card img {
@@ -732,6 +778,7 @@ Thank you.
           height: 155px;
           background: #eee;
           overflow: hidden;
+          cursor: pointer;
         }
 
         .product-img img {
@@ -916,6 +963,7 @@ Thank you.
 
         .checkout-form textarea {
           min-height: 110px;
+          resize: vertical;
         }
 
         .order-summary h3 {
@@ -1047,6 +1095,10 @@ Thank you.
           text-align: left;
         }
 
+        .footer-grid button:hover {
+          color: #dcae5d;
+        }
+
         .copyright {
           border-top: 1px solid #242424;
           margin-top: 20px;
@@ -1086,6 +1138,11 @@ Thank you.
           border: 0;
           color: #fff;
           font-size: 25px;
+          z-index: 5;
+        }
+
+        .modal-close:hover {
+          color: #dcae5d;
         }
 
         .modal-grid {
@@ -1096,6 +1153,7 @@ Thank you.
 
         .modal-image {
           background: #eee;
+          min-height: 350px;
         }
 
         .modal-image img {
@@ -1104,10 +1162,75 @@ Thank you.
           object-fit: contain;
         }
 
+        .modal-image video {
+          display: block;
+          max-height: 350px;
+          object-fit: contain;
+          background: #000;
+        }
+
+        .image-slider {
+          position: relative;
+          width: 100%;
+          height: 350px;
+          background: #eee;
+        }
+
+        .image-slider img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+
+        .slider-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(0,0,0,.5);
+          color: #fff;
+          border: 0;
+          width: 32px;
+          height: 32px;
+          font-size: 20px;
+        }
+
+        .slider-arrow.left {
+          left: 8px;
+        }
+
+        .slider-arrow.right {
+          right: 8px;
+        }
+
+        .slider-dots {
+          position: absolute;
+          bottom: 8px;
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          gap: 6px;
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: rgba(255,255,255,.5);
+        }
+
+        .dot.active {
+          background: #dcae5d;
+        }
+
+        .modal-content {
+          padding-top: 15px;
+        }
+
         .modal-content h2 {
           font-family: Georgia, serif;
           font-size: 32px;
           margin-bottom: 10px;
+          padding-right: 25px;
         }
 
         .modal-price {
@@ -1215,7 +1338,15 @@ Thank you.
             gap: 5px;
           }
 
+          .modal-image {
+            min-height: 250px;
+          }
+
           .modal-image img {
+            height: 250px;
+          }
+
+          .image-slider {
             height: 250px;
           }
         }
@@ -1242,20 +1373,37 @@ Thank you.
           .logo h1 {
             font-size: 35px;
           }
+
+          .header-actions {
+            gap: 4px;
+          }
+
+          .cart-btn {
+            padding: 9px 10px;
+          }
+
+          .modal {
+            padding: 15px;
+          }
         }
       `}</style>
 
       <div className="jk-page">
 
+        {/* ================= HEADER ================= */}
+
         <header className="header">
+
           <div className="logo">
             <h1>JK</h1>
+
             <span>
               SHOES & LEATHERS
             </span>
           </div>
 
           <nav className="nav">
+
             <button
               onClick={() =>
                 scrollTo("home")
@@ -1295,9 +1443,11 @@ Thank you.
             >
               CONTACT
             </button>
+
           </nav>
 
           <div className="header-actions">
+
             <button
               className="cart-btn"
               onClick={() =>
@@ -1305,6 +1455,7 @@ Thank you.
               }
             >
               🛒 CART{" "}
+
               <span className="cart-count">
                 {cartCount}
               </span>
@@ -1318,14 +1469,20 @@ Thank you.
             >
               📍 VISIT STORE
             </a>
+
           </div>
+
         </header>
+
+        {/* ================= HERO ================= */}
 
         <section
           className="hero"
           id="home"
         >
+
           <div className="hero-content">
+
             <div className="eyebrow">
               JK SHOES & LEATHERS
             </div>
@@ -1347,12 +1504,11 @@ Thank you.
             </p>
 
             <div className="hero-buttons">
+
               <button
                 className="gold-btn"
                 onClick={() =>
-                  scrollTo(
-                    "collections"
-                  )
+                  scrollTo("collections")
                 }
               >
                 EXPLORE COLLECTION →
@@ -1366,26 +1522,39 @@ Thank you.
               >
                 CONTACT US
               </a>
+
             </div>
 
             <div className="features">
+
               <span>
                 ★ Premium Leather
               </span>
+
               <span>|</span>
+
               <span>
                 🏷 Elegant Designs
               </span>
+
               <span>|</span>
+
               <span>
                 Everyday Comfort
               </span>
+
             </div>
+
           </div>
+
         </section>
 
+        {/* ================= COLLECTIONS ================= */}
+
         <section id="collections">
+
           <div className="section-title">
+
             <small className="section-small">
               OUR COLLECTIONS
             </small>
@@ -1393,29 +1562,44 @@ Thank you.
             <h2>
               Explore Our Collections
             </h2>
+
           </div>
 
           <div className="collections">
+
             {collections.map(
               (collection) => (
+
                 <div
                   className="collection-card"
-                  key={collection.id ?? collection.name}
+                  key={
+                    collection.id ??
+                    collection.name
+                  }
                   onClick={() => {
+
                     setActiveCategory(
                       collection.name
                     );
+
                     scrollTo(
                       "products"
                     );
+
                   }}
                 >
+
                   <img
-                    src={collection.image}
-                    alt={collection.name}
+                    src={
+                      collection.image
+                    }
+                    alt={
+                      collection.name
+                    }
                   />
 
                   <div className="collection-info">
+
                     <h3>
                       {collection.name.toUpperCase()}
                     </h3>
@@ -1423,15 +1607,24 @@ Thank you.
                     <span>
                       Shop Collection →
                     </span>
+
                   </div>
+
                 </div>
+
               )
             )}
+
           </div>
+
         </section>
 
+        {/* ================= PRODUCTS ================= */}
+
         <section id="products">
+
           <div className="section-title">
+
             <small className="section-small">
               SHOP THE COLLECTION
             </small>
@@ -1442,11 +1635,14 @@ Thank you.
                 ? "Featured Showcase"
                 : activeCategory}
             </h2>
+
           </div>
 
           <div className="category-filter">
+
             {categories.map(
               (category) => (
+
                 <button
                   key={category}
                   className={`filter-btn ${
@@ -1463,18 +1659,25 @@ Thank you.
                 >
                   {category.toUpperCase()}
                 </button>
+
               )
             )}
+
           </div>
 
           {loading ? (
+
             <div className="empty-cart">
               Loading products...
             </div>
+
           ) : (
+
             <div className="products">
+
               {visibleProducts.length ===
               0 ? (
+
                 <div
                   className="empty-cart"
                   style={{
@@ -1485,13 +1688,17 @@ Thank you.
                   No products in this
                   collection yet.
                 </div>
+
               ) : (
+
                 visibleProducts.map(
                   (product) => (
+
                     <div
                       className="product-card"
                       key={product.id}
                     >
+
                       <div
                         className="product-img"
                         onClick={() =>
@@ -1500,6 +1707,7 @@ Thank you.
                           )
                         }
                       >
+
                         <img
                           src={
                             product.image
@@ -1508,6 +1716,7 @@ Thank you.
                             product.name
                           }
                         />
+
                       </div>
 
                       <h3>
@@ -1537,20 +1746,31 @@ Thank you.
                       >
                         ADD TO CART
                       </button>
+
                     </div>
+
                   )
                 )
+
               )}
+
             </div>
+
           )}
+
         </section>
+
+        {/* ================= CART ================= */}
 
         <section
           id="cart"
           className="cart-section"
         >
+
           <div className="container">
+
             <div className="cart-title">
+
               <small className="section-small">
                 YOUR SHOPPING CART
               </small>
@@ -1558,20 +1778,27 @@ Thank you.
               <h2>
                 Selected Products
               </h2>
+
             </div>
 
             {!cart.length ? (
+
               <div className="empty-cart">
                 Your cart is empty.
               </div>
+
             ) : (
+
               <div className="cart-items">
+
                 {cart.map(
                   (item) => (
+
                     <div
                       className="cart-item"
                       key={item.id}
                     >
+
                       <img
                         src={
                           item.image
@@ -1582,6 +1809,7 @@ Thank you.
                       />
 
                       <div>
+
                         <div className="cart-name">
                           {
                             item.name
@@ -1594,9 +1822,11 @@ Thank you.
                             "en-IN"
                           )}
                         </div>
+
                       </div>
 
                       <div className="quantity-controls">
+
                         <button
                           onClick={() =>
                             changeQuantity(
@@ -1624,6 +1854,7 @@ Thank you.
                         >
                           +
                         </button>
+
                       </div>
 
                       <div className="cart-price">
@@ -1646,21 +1877,29 @@ Thank you.
                       >
                         🗑
                       </button>
+
                     </div>
+
                   )
                 )}
+
               </div>
+
             )}
 
             <div className="cart-summary">
+
               <div className="cart-total">
+
                 Total:{" "}
+
                 <span>
                   ₹
                   {cartTotal.toLocaleString(
                     "en-IN"
                   )}
                 </span>
+
               </div>
 
               <button
@@ -1673,16 +1912,24 @@ Thank you.
               >
                 PROCEED TO CHECKOUT
               </button>
+
             </div>
+
           </div>
+
         </section>
+
+        {/* ================= CHECKOUT ================= */}
 
         <section
           id="checkout"
           className="checkout-section"
         >
+
           <div className="container">
+
             <div className="checkout-title">
+
               <small className="section-small">
                 ORDER DETAILS
               </small>
@@ -1690,10 +1937,13 @@ Thank you.
               <h2>
                 Complete Your Order
               </h2>
+
             </div>
 
             <div className="checkout-grid">
+
               <div className="checkout-form">
+
                 <input
                   value={
                     customerName
@@ -1786,14 +2036,17 @@ Thank you.
                   JK Shoes through
                   WhatsApp.
                 </p>
+
               </div>
 
               <div className="order-summary">
+
                 <h3>
                   ORDER SUMMARY
                 </h3>
 
                 {!cart.length ? (
+
                   <p
                     style={{
                       color:
@@ -1806,16 +2059,21 @@ Thank you.
                     products will appear
                     here.
                   </p>
+
                 ) : (
+
                   <>
+
                     {cart.map(
                       (item) => (
+
                         <div
                           className="summary-item"
                           key={
                             item.id
                           }
                         >
+
                           <span>
                             {
                               item.name
@@ -1835,11 +2093,14 @@ Thank you.
                               "en-IN"
                             )}
                           </span>
+
                         </div>
+
                       )
                     )}
 
                     <div className="summary-total">
+
                       <span>
                         Total
                       </span>
@@ -1850,13 +2111,22 @@ Thank you.
                           "en-IN"
                         )}
                       </strong>
+
                     </div>
+
                   </>
+
                 )}
+
               </div>
+
             </div>
+
           </div>
+
         </section>
+
+        {/* ================= ABOUT ================= */}
 
         <section
           id="about"
@@ -1864,8 +2134,11 @@ Thank you.
             padding: 0,
           }}
         >
+
           <div className="about">
+
             <div className="about-text">
+
               <small className="section-small">
                 ABOUT US
               </small>
@@ -1899,69 +2172,98 @@ Thank you.
               >
                 KNOW MORE ABOUT US
               </button>
+
             </div>
 
             <div className="about-image">
+
               <img
                 src="/Images/store.jpg"
                 alt="JK Shoes Store"
               />
+
             </div>
+
           </div>
+
         </section>
+
+        {/* ================= USP ================= */}
 
         <section
           style={{
             padding: 0,
           }}
         >
+
           <div className="usp">
+
             <div className="usp-box">
+
               <h3>★</h3>
+
               <h3>
                 PREMIUM QUALITY
               </h3>
+
               <p>
                 Carefully selected
                 high quality leather
                 products.
               </p>
+
             </div>
 
             <div className="usp-box">
+
               <h3>👞</h3>
+
               <h3>
                 STYLISH COLLECTION
               </h3>
+
               <p>
                 Elegant designs for
                 every occasion.
               </p>
+
             </div>
 
             <div className="usp-box">
+
               <h3>🏷</h3>
+
               <h3>
                 BEST PRICES
               </h3>
+
               <p>
                 Affordable pricing
                 with the best value.
               </p>
+
             </div>
 
             <div className="usp-box">
+
               <h3>☎</h3>
+
               <h3>
                 CUSTOMER SUPPORT
               </h3>
+
               <p>
                 We are here to help
                 you always.
               </p>
+
             </div>
+
           </div>
+
         </section>
+
+        {/* ================= CONTACT ================= */}
 
         <section
           id="contact"
@@ -1969,15 +2271,20 @@ Thank you.
             padding: 0,
           }}
         >
+
           <div className="store">
+
             <div className="store-image">
+
               <img
                 src="/Images/showroom.jpg"
                 alt="JK Shoes Showroom"
               />
+
             </div>
 
             <div className="store-info">
+
               <small className="section-small">
                 VISIT OUR STORE
               </small>
@@ -2003,6 +2310,7 @@ Thank you.
               <br />
 
               <div className="hero-buttons">
+
                 <a
                   href="https://maps.app.goo.gl/MpTqdbR9nmUBwPW7A"
                   target="_blank"
@@ -2020,14 +2328,23 @@ Thank you.
                 >
                   WHATSAPP US
                 </a>
+
               </div>
+
             </div>
+
           </div>
+
         </section>
 
+        {/* ================= FOOTER ================= */}
+
         <footer>
+
           <div className="footer-grid">
+
             <div>
+
               <div className="footer-logo">
                 JK
               </div>
@@ -2043,9 +2360,11 @@ Thank you.
                 and leather
                 essentials.
               </p>
+
             </div>
 
             <div>
+
               <h4>
                 QUICK LINKS
               </h4>
@@ -2070,6 +2389,7 @@ Thank you.
                 ],
               ].map(
                 ([label, id]) => (
+
                   <button
                     key={id}
                     onClick={() =>
@@ -2078,11 +2398,14 @@ Thank you.
                   >
                     {label}
                   </button>
+
                 )
               )}
+
             </div>
 
             <div>
+
               <h4>
                 COLLECTIONS
               </h4>
@@ -2091,26 +2414,33 @@ Thank you.
                 .slice(1)
                 .map(
                   (category) => (
+
                     <button
                       key={
                         category
                       }
                       onClick={() => {
+
                         setActiveCategory(
                           category
                         );
+
                         scrollTo(
                           "products"
                         );
+
                       }}
                     >
                       {category}
                     </button>
+
                   )
                 )}
+
             </div>
 
             <div>
+
               <h4>
                 CONTACT INFO
               </h4>
@@ -2127,10 +2457,13 @@ Thank you.
                 Kundrathur
                 Pallavaram Road
               </p>
+
             </div>
+
           </div>
 
           <div className="copyright">
+
             <span>
               © 2026 JK Shoes &
               Leathers. All Rights
@@ -2141,48 +2474,140 @@ Thank you.
               Designed with ♡ for
               style and comfort.
             </span>
+
           </div>
+
         </footer>
 
+        {/* ================= PRODUCT MODAL ================= */}
+
         {selectedProduct && (
+
           <div
             className="modal-overlay"
             onClick={() =>
-              setSelectedProduct(
-                null
-              )
+              setSelectedProduct(null)
             }
           >
+
             <div
               className="modal"
               onClick={(e) =>
                 e.stopPropagation()
               }
             >
+
               <button
                 className="modal-close"
                 onClick={() =>
-                  setSelectedProduct(
-                    null
-                  )
+                  setSelectedProduct(null)
                 }
               >
                 ×
               </button>
 
               <div className="modal-grid">
+
                 <div className="modal-image">
-                  <img
-                    src={
-                      selectedProduct.image
-                    }
-                    alt={
-                      selectedProduct.name
-                    }
-                  />
+
+                  {galleryImages.length > 0 && (
+
+                    <div className="image-slider">
+
+                      <img
+                        src={
+                          galleryImages[
+                            currentImageIndex
+                          ]
+                        }
+                        alt={
+                          selectedProduct.name
+                        }
+                      />
+
+                      {galleryImages.length > 1 && (
+
+                        <>
+
+                          <button
+                            className="slider-arrow left"
+                            onClick={() =>
+                              setCurrentImageIndex(
+                                (i) =>
+                                  i === 0
+                                    ? galleryImages.length - 1
+                                    : i - 1
+                              )
+                            }
+                          >
+                            ‹
+                          </button>
+
+                          <button
+                            className="slider-arrow right"
+                            onClick={() =>
+                              setCurrentImageIndex(
+                                (i) =>
+                                  i === galleryImages.length - 1
+                                    ? 0
+                                    : i + 1
+                              )
+                            }
+                          >
+                            ›
+                          </button>
+
+                          <div className="slider-dots">
+
+                            {galleryImages.map(
+                              (_, index) => (
+
+                                <span
+                                  key={index}
+                                  className={`dot ${
+                                    index === currentImageIndex
+                                      ? "active"
+                                      : ""
+                                  }`}
+                                  onClick={() =>
+                                    setCurrentImageIndex(index)
+                                  }
+                                />
+
+                              )
+                            )}
+
+                          </div>
+
+                        </>
+
+                      )}
+
+                    </div>
+
+                  )}
+
+                  {(selectedProduct.video_url ||
+                    selectedProduct.video) && (
+
+                    <video
+                      src={
+                        selectedProduct.video_url ||
+                        selectedProduct.video
+                      }
+                      controls
+                      style={{
+                        width: "100%",
+                        marginTop: "15px",
+                      }}
+                    />
+
+                  )}
+
                 </div>
 
                 <div className="modal-content">
+
                   <small className="section-small">
                     {
                       selectedProduct.category
@@ -2196,21 +2621,24 @@ Thank you.
                   </h2>
 
                   <div className="modal-price">
+
                     ₹
                     {selectedProduct.price.toLocaleString(
                       "en-IN"
                     )}
+
                   </div>
 
                   <p>
-                    {selectedProduct.description ||
-                      "Premium product from JK Shoes & Leathers."}
+                    {
+                      selectedProduct.description ||
+                      "Premium product from JK Shoes & Leathers."
+                    }
                   </p>
 
                   <h4
                     style={{
-                      color:
-                        "#dcae5d",
+                      color: "#dcae5d",
                       marginBottom:
                         "8px",
                     }}
@@ -2219,28 +2647,41 @@ Thank you.
                   </h4>
 
                   <div className="spec-box">
-                    {selectedProduct.details ||
-                      "Details will be updated by JK Shoes."}
+
+                    {
+                      selectedProduct.details ||
+                      "Details will be updated by JK Shoes."
+                    }
+
                   </div>
 
                   <button
                     className="gold-btn"
                     onClick={() => {
+
                       addToCart(
                         selectedProduct
                       );
+
                       setSelectedProduct(
                         null
                       );
+
                     }}
                   >
                     ADD TO CART
                   </button>
+
                 </div>
+
               </div>
+
             </div>
+
           </div>
+
         )}
+
       </div>
     </>
   );

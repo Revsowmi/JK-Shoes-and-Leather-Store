@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ManageCollections from "../../ManageCollections";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -14,6 +15,8 @@ type Product = {
   price: number;
   category: string;
   image: string;
+  images?: string[] | null;
+  video_url?: string | null;
   description?: string;
   details?: string;
   stock?: number;
@@ -53,18 +56,21 @@ export default function AdminDashboard() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // null = adding a new product, otherwise = editing this product's id
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState("");
   const [image, setImage] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [videoUrl, setVideoUrl] = useState("");
   const [description, setDescription] = useState("");
   const [details, setDetails] = useState("");
   const [stock, setStock] = useState("1");
 
-  // --- Auth guard: redirect to /admin login if not logged in ---
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
+
   useEffect(() => {
     const loggedIn = sessionStorage.getItem("jkAdminLoggedIn");
 
@@ -76,7 +82,6 @@ export default function AdminDashboard() {
     setAuthorized(true);
   }, []);
 
-  // --- Load products only after auth passes ---
   useEffect(() => {
     if (!authorized) return;
 
@@ -102,23 +107,110 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+  function handleImagesChange(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+
+    if (files.length === 0) return;
+
+    const oversized = files.find(
+      (file) => file.size > 5 * 1024 * 1024
+    );
+
+    if (oversized) {
+      alert(
+        `Image "${oversized.name}" is larger than 5MB. Please choose smaller images.`
+      );
+      e.target.value = "";
+      return;
+    }
+
+    setSelectedImages(files);
+
+    const previews = files.map((file) => URL.createObjectURL(file));
+
+    setImages(previews);
+    setImage(previews[0] || "");
+  }
+
+  function handleVideoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Please select an image below 5MB.");
+    if (!file.type.startsWith("video/")) {
+      alert("Please select a valid video file.");
+      e.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
+    if (file.size > 50 * 1024 * 1024) {
+      alert("Please select a video below 50MB.");
+      e.target.value = "";
+      return;
+    }
 
-    reader.onloadend = () => {
-      setImage(reader.result as string);
-    };
+    setSelectedVideo(file);
+    setVideoUrl(URL.createObjectURL(file));
+  }
 
-    reader.readAsDataURL(file);
+  async function uploadImages(files: File[]) {
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      const extension = file.name.split(".").pop() || "jpg";
+
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2)}.${extension}`;
+
+      const filePath = `products/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) {
+        throw new Error(`Image upload failed: ${error.message}`);
+      }
+
+      const { data } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(filePath);
+
+      uploadedUrls.push(data.publicUrl);
+    }
+
+    return uploadedUrls;
+  }
+
+  async function uploadVideo(file: File) {
+    const extension = file.name.split(".").pop() || "mp4";
+
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2)}.${extension}`;
+
+    const filePath = `products/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from("product-videos")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(`Video upload failed: ${error.message}`);
+    }
+
+    const { data } = supabase.storage
+      .from("product-videos")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
   }
 
   function resetForm() {
@@ -127,9 +219,13 @@ export default function AdminDashboard() {
     setPrice("");
     setCategory("");
     setImage("");
+    setImages([]);
+    setVideoUrl("");
     setDescription("");
     setDetails("");
     setStock("1");
+    setSelectedImages([]);
+    setSelectedVideo(null);
   }
 
   function startEdit(product: Product) {
@@ -137,17 +233,37 @@ export default function AdminDashboard() {
     setName(product.name);
     setPrice(String(product.price));
     setCategory(product.category);
+
     setImage(product.image);
+
+    const existingImages =
+      product.images && product.images.length > 0
+        ? product.images
+        : product.image
+        ? [product.image]
+        : [];
+
+    setImages(existingImages);
+    setVideoUrl(product.video_url || "");
+
     setDescription(product.description || "");
     setDetails(product.details || "");
     setStock(String(product.stock ?? 1));
+
+    setSelectedImages([]);
+    setSelectedVideo(null);
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveProduct() {
-    if (!name.trim() || !price.trim() || !category.trim() || !image) {
-      alert("Please fill Product Name, Price, Category and Image.");
+    if (!name.trim() || !price.trim() || !category.trim()) {
+      alert("Please fill Product Name, Price and Category.");
+      return;
+    }
+
+    if (editingId === null && selectedImages.length === 0) {
+      alert("Please select at least one product image.");
       return;
     }
 
@@ -166,61 +282,106 @@ export default function AdminDashboard() {
 
     setSaving(true);
 
-    const productData = {
-      name: name.trim(),
-      price: numericPrice,
-      category: category.trim(),
-      image,
-      description:
-        description.trim() || "Premium product from JK Shoes & Leathers.",
-      details: details.trim() || "Specifications will be updated by JK Shoes.",
-      stock: numericStock,
-    };
+    try {
+      let finalImages = images;
+      let finalImage = image;
+      let finalVideoUrl = videoUrl;
 
-    if (editingId === null) {
-      const { data, error } = await supabase
-        .from("products")
-        .insert([productData])
-        .select()
-        .single();
+      // Upload newly selected images
+      if (selectedImages.length > 0) {
+        const uploadedImages = await uploadImages(selectedImages);
 
-      if (error) {
-        console.error("Supabase insert error:", error);
-        alert("Product could not be added.\n\n" + error.message);
+        finalImages =
+          editingId !== null
+            ? [...images.filter((img) => !img.startsWith("blob:")), ...uploadedImages]
+            : uploadedImages;
+
+        finalImage = finalImages[0] || "";
+      }
+
+      // Upload newly selected video
+      if (selectedVideo) {
+        finalVideoUrl = await uploadVideo(selectedVideo);
+      }
+
+      if (!finalImage) {
+        alert("Please select at least one product image.");
         setSaving(false);
         return;
       }
 
-      if (data) {
-        setProducts((current) => [data as Product, ...current]);
+      const productData = {
+        name: name.trim(),
+        price: numericPrice,
+        category: category.trim(),
+        image: finalImage,
+        images: finalImages,
+        video_url: finalVideoUrl || null,
+        description:
+          description.trim() ||
+          "Premium product from JK Shoes & Leathers.",
+        details:
+          details.trim() ||
+          "Specifications will be updated by JK Shoes.",
+        stock: numericStock,
+      };
+
+      if (editingId === null) {
+        const { data, error } = await supabase
+          .from("products")
+          .insert([productData])
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Supabase insert error:", error);
+          alert("Product could not be added.\n\n" + error.message);
+          setSaving(false);
+          return;
+        }
+
+        if (data) {
+          setProducts((current) => [data as Product, ...current]);
+        }
+
+        alert("Product added successfully!");
+      } else {
+        const { data, error } = await supabase
+          .from("products")
+          .update(productData)
+          .eq("id", editingId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Supabase update error:", error);
+          alert("Product could not be updated.\n\n" + error.message);
+          setSaving(false);
+          return;
+        }
+
+        if (data) {
+          setProducts((current) =>
+            current.map((p) =>
+              p.id === editingId ? (data as Product) : p
+            )
+          );
+        }
+
+        alert("Product updated successfully!");
       }
 
-      alert("Product added successfully!");
-    } else {
-      const { data, error } = await supabase
-        .from("products")
-        .update(productData)
-        .eq("id", editingId)
-        .select()
-        .single();
+      resetForm();
+    } catch (error) {
+      console.error("Upload/save error:", error);
 
-      if (error) {
-        console.error("Supabase update error:", error);
-        alert("Product could not be updated.\n\n" + error.message);
-        setSaving(false);
-        return;
-      }
-
-      if (data) {
-        setProducts((current) =>
-          current.map((p) => (p.id === editingId ? (data as Product) : p))
-        );
-      }
-
-      alert("Product updated successfully!");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while uploading the product."
+      );
     }
 
-    resetForm();
     setSaving(false);
   }
 
@@ -233,7 +394,10 @@ export default function AdminDashboard() {
 
     setDeletingId(id);
 
-    const { error } = await supabase.from("products").delete().eq("id", id);
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id);
 
     if (error) {
       console.error("Supabase delete error:", error);
@@ -242,7 +406,9 @@ export default function AdminDashboard() {
       return;
     }
 
-    setProducts((current) => current.filter((product) => product.id !== id));
+    setProducts((current) =>
+      current.filter((product) => product.id !== id)
+    );
 
     if (editingId === id) {
       resetForm();
@@ -258,7 +424,6 @@ export default function AdminDashboard() {
     window.location.replace("/admin");
   }
 
-  // --- Block dashboard until auth check passes ---
   if (!authorized) {
     return (
       <main
@@ -309,7 +474,9 @@ export default function AdminDashboard() {
             JK Shoes Admin
           </h1>
 
-          <p style={{ color: "#999", fontSize: "13px" }}>Manage your products</p>
+          <p style={{ color: "#999", fontSize: "13px" }}>
+            Manage your products
+          </p>
         </div>
 
         <div style={{ display: "flex", gap: "10px" }}>
@@ -363,7 +530,12 @@ export default function AdminDashboard() {
             marginBottom: "20px",
           }}
         >
-          <h2 style={{ color: "#dcae5d", fontFamily: "Georgia, serif" }}>
+          <h2
+            style={{
+              color: "#dcae5d",
+              fontFamily: "Georgia, serif",
+            }}
+          >
             {editingId === null ? "Add New Product" : "Edit Product"}
           </h2>
 
@@ -388,7 +560,8 @@ export default function AdminDashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(220px, 1fr))",
             gap: "15px",
           }}
         >
@@ -432,46 +605,194 @@ export default function AdminDashboard() {
             onChange={(e) => setStock(e.target.value)}
             style={inputStyle}
           />
+        </div>
+
+        {/* MULTIPLE IMAGES */}
+        <div style={{ marginTop: "15px" }}>
+          <label
+            style={{
+              display: "block",
+              color: "#dcae5d",
+              fontSize: "13px",
+              fontWeight: "bold",
+              marginBottom: "8px",
+            }}
+          >
+            Product Images
+          </label>
 
           <input
             type="file"
             accept="image/*"
-            onChange={handleImageUpload}
-            style={{ ...inputStyle, padding: "10px" }}
+            multiple
+            onChange={handleImagesChange}
+            style={{
+              ...inputStyle,
+              padding: "10px",
+            }}
           />
+
+          <p
+            style={{
+              color: "#888",
+              fontSize: "11px",
+              marginTop: "7px",
+            }}
+          >
+            Select multiple images. Each image must be below 5MB.
+          </p>
+        </div>
+
+        {/* VIDEO */}
+        <div style={{ marginTop: "15px" }}>
+          <label
+            style={{
+              display: "block",
+              color: "#dcae5d",
+              fontSize: "13px",
+              fontWeight: "bold",
+              marginBottom: "8px",
+            }}
+          >
+            Product Video
+          </label>
+
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleVideoChange}
+            style={{
+              ...inputStyle,
+              padding: "10px",
+            }}
+          />
+
+          <p
+            style={{
+              color: "#888",
+              fontSize: "11px",
+              marginTop: "7px",
+            }}
+          >
+            Optional. Maximum 50MB.
+          </p>
         </div>
 
         <textarea
           placeholder="Product Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          style={{ ...textareaStyle, marginTop: "15px" }}
+          style={{
+            ...textareaStyle,
+            marginTop: "15px",
+          }}
         />
 
         <textarea
           placeholder="Product Details / Specifications"
           value={details}
           onChange={(e) => setDetails(e.target.value)}
-          style={{ ...textareaStyle, marginTop: "15px", minHeight: "130px" }}
+          style={{
+            ...textareaStyle,
+            marginTop: "15px",
+            minHeight: "130px",
+          }}
         />
 
-        <p style={{ color: "#888", fontSize: "11px", marginTop: "7px" }}>
+        <p
+          style={{
+            color: "#888",
+            fontSize: "11px",
+            marginTop: "7px",
+          }}
+        >
           Example: Material: Premium Leather | Color: Brown | Size: 9 | Sole: Rubber
         </p>
 
-        {image && (
+        {/* IMAGE PREVIEWS */}
+        {images.length > 0 && (
           <div style={{ marginTop: "20px" }}>
-            <p style={{ color: "#dcae5d", fontWeight: "bold", marginBottom: "10px" }}>
-              Image Preview
+            <p
+              style={{
+                color: "#dcae5d",
+                fontWeight: "bold",
+                marginBottom: "10px",
+              }}
+            >
+              Image Preview ({images.length})
             </p>
 
-            <img
-              src={image}
-              alt="Product preview"
+            <div
               style={{
-                width: "160px",
-                height: "160px",
-                objectFit: "cover",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "12px",
+              }}
+            >
+              {images.map((img, index) => (
+                <div
+                  key={`${img}-${index}`}
+                  style={{
+                    position: "relative",
+                  }}
+                >
+                  <img
+                    src={img}
+                    alt={`Product preview ${index + 1}`}
+                    style={{
+                      width: "140px",
+                      height: "140px",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                      border:
+                        index === 0
+                          ? "2px solid #dcae5d"
+                          : "1px solid #4e3a1c",
+                    }}
+                  />
+
+                  {index === 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: "5px",
+                        bottom: "5px",
+                        background: "#dcae5d",
+                        color: "#111",
+                        padding: "4px 7px",
+                        borderRadius: "4px",
+                        fontSize: "9px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      MAIN
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* VIDEO PREVIEW */}
+        {videoUrl && (
+          <div style={{ marginTop: "20px" }}>
+            <p
+              style={{
+                color: "#dcae5d",
+                fontWeight: "bold",
+                marginBottom: "10px",
+              }}
+            >
+              Video Preview
+            </p>
+
+            <video
+              src={videoUrl}
+              controls
+              style={{
+                width: "300px",
+                maxWidth: "100%",
                 borderRadius: "8px",
                 border: "1px solid #dcae5d",
               }}
@@ -479,7 +800,13 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            marginTop: "20px",
+          }}
+        >
           <button
             onClick={saveProduct}
             disabled={saving}
@@ -522,8 +849,20 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      <section style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <h2 style={{ color: "#dcae5d", fontFamily: "Georgia, serif", marginBottom: "20px" }}>
+      {/* CURRENT PRODUCTS */}
+      <section
+        style={{
+          maxWidth: "1100px",
+          margin: "0 auto",
+        }}
+      >
+        <h2
+          style={{
+            color: "#dcae5d",
+            fontFamily: "Georgia, serif",
+            marginBottom: "20px",
+          }}
+        >
           Current Products ({products.length})
         </h2>
 
@@ -557,7 +896,8 @@ export default function AdminDashboard() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(220px, 1fr))",
               gap: "20px",
             }}
           >
@@ -574,20 +914,40 @@ export default function AdminDashboard() {
                   overflow: "hidden",
                 }}
               >
-                <div style={{ background: "#eee", height: "220px" }}>
+                <div
+                  style={{
+                    background: "#eee",
+                    height: "220px",
+                  }}
+                >
                   <img
                     src={product.image}
                     alt={product.name}
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                    }}
                   />
                 </div>
 
                 <div style={{ padding: "15px" }}>
-                  <h3 style={{ fontSize: "15px", marginBottom: "8px" }}>
+                  <h3
+                    style={{
+                      fontSize: "15px",
+                      marginBottom: "8px",
+                    }}
+                  >
                     {product.name}
                   </h3>
 
-                  <p style={{ color: "#dcae5d", fontSize: "12px", marginBottom: "8px" }}>
+                  <p
+                    style={{
+                      color: "#dcae5d",
+                      fontSize: "12px",
+                      marginBottom: "8px",
+                    }}
+                  >
                     {product.category}
                   </p>
 
@@ -604,13 +964,41 @@ export default function AdminDashboard() {
 
                   <p
                     style={{
-                      color: (product.stock ?? 0) > 0 ? "#7ed957" : "#ff5555",
+                      color:
+                        (product.stock ?? 0) > 0
+                          ? "#7ed957"
+                          : "#ff5555",
                       fontSize: "12px",
                       marginBottom: "12px",
                     }}
                   >
                     Stock: {product.stock ?? 0}
                   </p>
+
+                  {product.images &&
+                    product.images.length > 1 && (
+                      <p
+                        style={{
+                          color: "#aaa",
+                          fontSize: "11px",
+                          marginBottom: "10px",
+                        }}
+                      >
+                        🖼️ {product.images.length} images
+                      </p>
+                    )}
+
+                  {product.video_url && (
+                    <p
+                      style={{
+                        color: "#7ed957",
+                        fontSize: "11px",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      🎥 Product video available
+                    </p>
+                  )}
 
                   <div
                     style={{
@@ -632,12 +1020,23 @@ export default function AdminDashboard() {
                       DETAILS
                     </p>
 
-                    <p style={{ color: "#aaa", fontSize: "11px", lineHeight: "1.6" }}>
+                    <p
+                      style={{
+                        color: "#aaa",
+                        fontSize: "11px",
+                        lineHeight: "1.6",
+                      }}
+                    >
                       {product.details || "Not specified"}
                     </p>
                   </div>
 
-                  <div style={{ display: "flex", gap: "10px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                    }}
+                  >
                     <button
                       onClick={() => startEdit(product)}
                       style={{
@@ -658,15 +1057,23 @@ export default function AdminDashboard() {
                       disabled={deletingId === product.id}
                       style={{
                         flex: 1,
-                        background: deletingId === product.id ? "#633" : "#b52b2b",
+                        background:
+                          deletingId === product.id
+                            ? "#633"
+                            : "#b52b2b",
                         color: "#fff",
                         border: "none",
                         padding: "11px",
                         borderRadius: "7px",
-                        cursor: deletingId === product.id ? "not-allowed" : "pointer",
+                        cursor:
+                          deletingId === product.id
+                            ? "not-allowed"
+                            : "pointer",
                       }}
                     >
-                      {deletingId === product.id ? "..." : "🗑 DELETE"}
+                      {deletingId === product.id
+                        ? "..."
+                        : "🗑 DELETE"}
                     </button>
                   </div>
                 </div>
