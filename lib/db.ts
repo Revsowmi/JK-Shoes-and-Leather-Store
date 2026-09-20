@@ -1,15 +1,5 @@
-import { NextResponse } from "next/server";
-import { getSql } from "@/lib/db";
+import { neon } from "@neondatabase/serverless";
 
-export const dynamic = "force-dynamic";
-
-export async function GET() {
-  try {
-    const sql = getSql();
-    const products = await sql`SELECT * FROM products ORDER BY id DESC`;
-    return NextResponse.json(products);
-  } catch (error) {
-    console.error("DB PRODUCTS ERROR:", error);
-    return NextResponse.json({ error: "Failed to load products" }, { status: 500 });
-  }
+export function getSql() {
+  return neon(process.env.DATABASE_URL!);
 }
