@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 type Product = {
   id: number;
@@ -191,23 +190,17 @@ export default function Home() {
   async function loadProducts() {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("id", {
-        ascending: false,
-      });
+    try {
+      const res = await fetch("/api/products");
+      const data = await res.json();
 
-    if (error) {
-      console.error(
-        "SUPABASE PRODUCT ERROR:",
-        error
-      );
-
-      setProducts(DEFAULT_PRODUCTS);
-    } else if (data && data.length > 0) {
-      setProducts(data);
-    } else {
+      if (Array.isArray(data) && data.length > 0) {
+        setProducts(data);
+      } else {
+        setProducts(DEFAULT_PRODUCTS);
+      }
+    } catch (error) {
+      console.error("PRODUCTS FETCH ERROR:", error);
       setProducts(DEFAULT_PRODUCTS);
     }
 
@@ -215,23 +208,17 @@ export default function Home() {
   }
 
   async function loadCollections() {
-    const { data, error } = await supabase
-      .from("collections")
-      .select("*")
-      .order("sort_order", {
-        ascending: true,
-      });
+    try {
+      const res = await fetch("/api/collections");
+      const data = await res.json();
 
-    if (error) {
-      console.error(
-        "SUPABASE COLLECTIONS ERROR:",
-        error
-      );
-
-      setCollections(DEFAULT_COLLECTIONS);
-    } else if (data && data.length > 0) {
-      setCollections(data);
-    } else {
+      if (Array.isArray(data) && data.length > 0) {
+        setCollections(data);
+      } else {
+        setCollections(DEFAULT_COLLECTIONS);
+      }
+    } catch (error) {
+      console.error("COLLECTIONS FETCH ERROR:", error);
       setCollections(DEFAULT_COLLECTIONS);
     }
   }
